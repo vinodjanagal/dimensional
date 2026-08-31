@@ -1,42 +1,48 @@
-from sqlalchemy.orm import Session
+
 from app.models import Note as NoteModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 
-def get_note(db: Session, note_id: int, user_id: int):
-    return (
-        db.query(NoteModel)
-        .filter(
+async def get_note(db: AsyncSession, note_id: int, user_id: int):
+    result = await db.execute(
+        select(NoteModel)
+        .where(
             NoteModel.id == note_id,
             NoteModel.owner_id == user_id,
         )
-        .first()
     )
 
+    return result.scalar_one_or_none()
 
-def get_notes(db: Session, user_id: int):
-    return (
-        db.query(NoteModel)
-        .filter(NoteModel.owner_id == user_id)
-        .all()
+
+async def get_notes(db: AsyncSession, user_id: int):
+    result = await db.execute(
+         select(NoteModel)
+        .where(NoteModel.owner_id == user_id)
     )
 
-def create_note(db: Session, note: NoteModel):
+    return result.scalars().all()
+
+async def create_note(db: AsyncSession, note: NoteModel):
     db.add(note)
-    db.flush()
-    db.refresh(note)
+
+    await db.flush()
+    await db.refresh(note)
 
     return note
 
-def update_note(db: Session, note_id: int, title: str, content: str, user_id: int):
+async def update_note(db: AsyncSession, note_id: int, title: str, content: str, user_id: int):
 
-    note = (
-        db.query(NoteModel)
-        .filter(
+    result = await db.execute(
+        select(NoteModel).where(
             NoteModel.id == note_id,
             NoteModel.owner_id == user_id,
         )
-        .first()
     )
+
+    note = result.scalar_one_or_none()
 
     if note is None:
         return None
@@ -44,25 +50,21 @@ def update_note(db: Session, note_id: int, title: str, content: str, user_id: in
     note.title = title
     note.content = content
 
-    db.commit()
-    db.refresh(note)
-
     return note
 
-def delete_note(db: Session, note_id: int, user_id: int):
-    note = (
-        db.query(NoteModel)
-        .filter(
+async def delete_note(db: AsyncSession, note_id: int, user_id: int):
+    result = await db.execute(
+        select(NoteModel).where(
             NoteModel.id == note_id,
             NoteModel.owner_id == user_id,
         )
-        .first()
     )
+
+    note = result.scalar_one_or_none()
 
     if note is None:
         return None
 
-    db.delete(note)
-    db.commit()
+    await db.delete(note)
 
     return note

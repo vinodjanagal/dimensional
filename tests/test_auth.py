@@ -1,3 +1,4 @@
+import pytest
 import jwt
 from app.models import User
 from app.auth.auth import get_current_user
@@ -6,8 +7,9 @@ from app.main import app
 from datetime import datetime, timedelta, timezone
 from app.auth.security import create_access_token
 
-def test_register_user(client):
-    response = client.post(
+@pytest.mark.asyncio
+async def test_register_user(client):
+    response = await client.post(
         "/auth/register",
         json={
             "email": "new@example.com",
@@ -23,21 +25,21 @@ def test_register_user(client):
     assert "password" not in data
     assert "password_hash" not in data
 
-
-def test_register_duplicate_email(client):
+@pytest.mark.asyncio
+async def test_register_duplicate_email(client):
     payload = {
         "email": "duplicate@example.com",
         "password": "password123",
     }
 
-    response = client.post(
+    response = await client.post(
         "/auth/register",
         json=payload,
     )
 
     assert response.status_code == 200
 
-    response = client.post(
+    response = await client.post(
         "/auth/register",
         json=payload,
     )
@@ -45,8 +47,9 @@ def test_register_duplicate_email(client):
     assert response.status_code == 400
     assert response.json()["detail"] == "Email already registered"
 
-def test_login_user(client):
-    register_response = client.post(
+@pytest.mark.asyncio
+async def test_login_user(client):
+    register_response = await client.post(
         "/auth/register",
         json={
             "email": "login@example.com",
@@ -58,7 +61,7 @@ def test_login_user(client):
 
     user_id = register_response.json()["id"]
 
-    response = client.post(
+    response = await client.post(
         "/auth/login",
         json={
             "email": "login@example.com",
@@ -90,9 +93,9 @@ def test_login_user(client):
 
 
 
-
-def test_login_wrong_password(client):
-    client.post(
+@pytest.mark.asyncio
+async def test_login_wrong_password(client):
+    await client.post(
         "/auth/register",
         json={
             "email": "wrong-password@example.com",
@@ -100,7 +103,7 @@ def test_login_wrong_password(client):
         },
     )
 
-    response = client.post(
+    response = await client.post(
         "/auth/login",
         json={
             "email": "wrong-password@example.com",
@@ -111,8 +114,9 @@ def test_login_wrong_password(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid email or password"
 
-def test_login_nonexistent_email(client):
-    response = client.post(
+@pytest.mark.asyncio
+async def test_login_nonexistent_email(client):
+    response = await client.post(
         "/auth/login",
         json={
             "email": "does-not-exist@example.com",
@@ -123,15 +127,17 @@ def test_login_nonexistent_email(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid email or password"
 
-def test_notes_requires_authentication(client):
+@pytest.mark.asyncio
+async def test_notes_requires_authentication(client):
     app.dependency_overrides.pop(get_current_user, None)
 
-    response = client.get("/notes")
+    response = await client.get("/notes")
 
     assert response.status_code == 401
 
-def test_notes_with_valid_token(client):
-    client.post(
+@pytest.mark.asyncio
+async def test_notes_with_valid_token(client):
+    await client.post(
         "/auth/register",
         json={
             "email": "authorized@example.com",
@@ -139,7 +145,7 @@ def test_notes_with_valid_token(client):
         },
     )
 
-    login_response = client.post(
+    login_response = await client.post(
         "/auth/login",
         json={
             "email": "authorized@example.com",
@@ -151,7 +157,7 @@ def test_notes_with_valid_token(client):
 
     token = login_response.json()["access_token"]
 
-    response = client.get(
+    response = await client.get(
         "/notes",
         headers={
             "Authorization": f"Bearer {token}",
@@ -160,9 +166,9 @@ def test_notes_with_valid_token(client):
 
     assert response.status_code == 200
 
-
-def test_notes_with_invalid_token(client):
-    response = client.get(
+@pytest.mark.asyncio
+async def test_notes_with_invalid_token(client):
+    response = await client.get(
         "/notes",
         headers={
             "Authorization": "Bearer invalid-token",
@@ -172,8 +178,8 @@ def test_notes_with_invalid_token(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired token"
 
-
-def test_notes_with_expired_token(client):
+@pytest.mark.asyncio
+async def test_notes_with_expired_token(client):
     expired_payload = {
         "sub": "123",
         "exp": datetime.now(timezone.utc) - timedelta(minutes=1),
@@ -185,7 +191,7 @@ def test_notes_with_expired_token(client):
         algorithm=ALGORITHM,
     )
 
-    response = client.get(
+    response = await client.get(
         "/notes",
         headers={
             "Authorization": f"Bearer {token}",
@@ -195,8 +201,8 @@ def test_notes_with_expired_token(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired token"
 
-
-def test_notes_with_tampered_token(client):
+@pytest.mark.asyncio
+async def test_notes_with_tampered_token(client):
     token = create_access_token(123)
 
     header, payload, signature = token.split(".")
@@ -218,7 +224,7 @@ def test_notes_with_tampered_token(client):
 
     tampered_token = f"{header}.{tampered_payload}.{signature}"
 
-    response = client.get(
+    response = await client.get(
         "/notes",
         headers={
             "Authorization": f"Bearer {tampered_token}",
@@ -228,11 +234,11 @@ def test_notes_with_tampered_token(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired token"
 
-
-def test_notes_with_token_for_nonexistent_user(client):
+@pytest.mark.asyncio
+async def test_notes_with_token_for_nonexistent_user(client):
     token = create_access_token(999999)
 
-    response = client.get(
+    response = await client.get(
         "/notes",
         headers={
             "Authorization": f"Bearer {token}",
@@ -242,14 +248,14 @@ def test_notes_with_token_for_nonexistent_user(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "User not found"
 
-
-def test_user_cannot_access_another_users_note(
+@pytest.mark.asyncio
+async def test_user_cannot_access_another_users_note(
     authenticated_client,
     db,
     test_user,
 ):
     # User 1 creates a note
-    response = authenticated_client.post(
+    response = await authenticated_client.post(
         "/notes",
         json={
             "title": "User 1 note",
@@ -268,29 +274,29 @@ def test_user_cannot_access_another_users_note(
     )
 
     db.add(other_user)
-    db.commit()
-    db.refresh(other_user)
+    await db.commit()
+    await db.refresh(other_user)
 
     # Switch the authenticated user to User 2
-    def override_get_current_user():
+    async def override_get_current_user():
         return other_user
 
     app.dependency_overrides[get_current_user] = override_get_current_user
 
     # User 2 tries to access User 1's note
-    response = authenticated_client.get(f"/notes/{note_id}")
+    response = await authenticated_client.get(f"/notes/{note_id}")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Note not found"
 
-
-def test_user_cannot_update_another_users_note(
+@pytest.mark.asyncio
+async def test_user_cannot_update_another_users_note(
     authenticated_client,
     db,
     test_user,
 ):
     # User 1 creates a note
-    response = authenticated_client.post(
+    response = await authenticated_client.post(
         "/notes",
         json={
             "title": "User 1 note",
@@ -309,17 +315,17 @@ def test_user_cannot_update_another_users_note(
     )
 
     db.add(other_user)
-    db.commit()
-    db.refresh(other_user)
+    await db.commit()
+    await db.refresh(other_user)
 
     # Switch authentication to User 2
-    def override_get_current_user():
+    async def override_get_current_user():
         return other_user
 
     app.dependency_overrides[get_current_user] = override_get_current_user
 
     # User 2 tries to update User 1's note
-    response = authenticated_client.put(
+    response = await authenticated_client.put(
         f"/notes/{note_id}",
         json={
             "title": "Hacked title",
@@ -330,14 +336,14 @@ def test_user_cannot_update_another_users_note(
     assert response.status_code == 404
     assert response.json()["detail"] == "Note not found"
 
-
-def test_user_cannot_delete_another_users_note(
+@pytest.mark.asyncio
+async def test_user_cannot_delete_another_users_note(
     authenticated_client,
     db,
     test_user,
 ):
     # User 1 creates a note
-    response = authenticated_client.post(
+    response = await authenticated_client.post(
         "/notes",
         json={
             "title": "User 1 note",
@@ -356,26 +362,26 @@ def test_user_cannot_delete_another_users_note(
     )
 
     db.add(other_user)
-    db.commit()
-    db.refresh(other_user)
+    await db.commit()
+    await db.refresh(other_user)
 
     # Switch authentication to User 2
-    def override_get_current_user():
+    async def override_get_current_user():
         return other_user
 
     app.dependency_overrides[get_current_user] = override_get_current_user
 
     # User 2 tries to delete User 1's note
-    response = authenticated_client.delete(
+    response = await authenticated_client.delete(
         f"/notes/{note_id}"
     )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Note not found"
 
-
-def test_refresh_token_returns_new_access_token(client):
-    register_response = client.post(
+@pytest.mark.asyncio
+async def test_refresh_token_returns_new_access_token(client):
+    register_response = await client.post(
         "/auth/register",
         json={
             "email": "refresh@example.com",
@@ -385,7 +391,7 @@ def test_refresh_token_returns_new_access_token(client):
 
     assert register_response.status_code == 200
 
-    login_response = client.post(
+    login_response = await client.post(
         "/auth/login",
         json={
             "email": "refresh@example.com",
@@ -397,7 +403,7 @@ def test_refresh_token_returns_new_access_token(client):
 
     refresh_token = login_response.json()["refresh_token"]
 
-    response = client.post(
+    response = await client.post(
         "/auth/refresh",
         json={
             "refresh_token": refresh_token,
@@ -407,8 +413,9 @@ def test_refresh_token_returns_new_access_token(client):
     assert response.status_code == 200
     assert "access_token" in response.json()
 
-def test_access_token_cannot_be_used_as_refresh_token(client):
-    register_response = client.post(
+@pytest.mark.asyncio
+async def test_access_token_cannot_be_used_as_refresh_token(client):
+    register_response = await client.post(
         "/auth/register",
         json={
             "email": "access-as-refresh@example.com",
@@ -418,7 +425,7 @@ def test_access_token_cannot_be_used_as_refresh_token(client):
 
     assert register_response.status_code == 200
 
-    login_response = client.post(
+    login_response = await client.post(
         "/auth/login",
         json={
             "email": "access-as-refresh@example.com",
@@ -430,7 +437,7 @@ def test_access_token_cannot_be_used_as_refresh_token(client):
 
     access_token = login_response.json()["access_token"]
 
-    response = client.post(
+    response = await client.post(
         "/auth/refresh",
         json={
             "refresh_token": access_token,
@@ -439,9 +446,9 @@ def test_access_token_cannot_be_used_as_refresh_token(client):
 
     assert response.status_code == 401  
 
-
-def test_invalid_refresh_token_is_rejected(client):
-    response = client.post(
+@pytest.mark.asyncio
+async def test_invalid_refresh_token_is_rejected(client):
+    response = await client.post(
         "/auth/refresh",
         json={
             "refresh_token": "this-is-not-a-valid-jwt",
@@ -450,7 +457,8 @@ def test_invalid_refresh_token_is_rejected(client):
 
     assert response.status_code == 401
 
-def test_refresh_token_for_nonexistent_user_is_rejected(client):
+@pytest.mark.asyncio
+async def test_refresh_token_for_nonexistent_user_is_rejected(client):
     from app.auth.security import SECRET_KEY, ALGORITHM
     import jwt
 
@@ -463,7 +471,7 @@ def test_refresh_token_for_nonexistent_user_is_rejected(client):
         algorithm=ALGORITHM,
     )
 
-    response = client.post(
+    response = await client.post(
         "/auth/refresh",
         json={
             "refresh_token": token,
