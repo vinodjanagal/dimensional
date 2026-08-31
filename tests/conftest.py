@@ -1,7 +1,11 @@
+import asyncio
+import sys
+
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+import pytest_asyncio
+
+from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from app.main import app
 from app.database import get_db
@@ -9,56 +13,68 @@ from app.models import Base, User
 from app.settings import settings
 from app.auth.auth import get_current_user
 
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 TEST_DATABASE_URL = settings.database_url
 
-test_engine = create_engine(TEST_DATABASE_URL)
+test_engine = create_async_engine(TEST_DATABASE_URL)
 
-TestingSessionLocal = sessionmaker(
+TestingSessionLocal = async_sessionmaker(
     bind=test_engine,
     autoflush=False,
-    autocommit=False,
+    expire_on_commit=False,
 )
 
-@pytest.fixture
-def db():
-    Base.metadata.create_all(bind=test_engine)
 
-    db = TestingSessionLocal()
+@pytest_asyncio.fixture
+async def db():
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-    try:
+    async with TestingSessionLocal() as db:
         yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(bind=test_engine)
 
-@pytest.fixture
-def test_user(db):
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture
+async def test_user(db):
     user = User(
         email="test@example.com",
         password_hash="test_hash",
     )
 
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
 
     return user
 
-@pytest.fixture
-def client(db):
-    def override_get_db():
+
+@pytest_asyncio.fixture
+async def client(db):
+    async def override_get_db():
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
 
-    yield TestClient(app)
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as client:
+        yield client
 
     app.dependency_overrides.clear()
 
 
-@pytest.fixture
-def authenticated_client(client, test_user):
-    def override_get_current_user():
+@pytest_asyncio.fixture
+async def authenticated_client(client, test_user):
+    async def override_get_current_user():
         return test_user
 
     app.dependency_overrides[get_current_user] = override_get_current_user
@@ -66,34 +82,3 @@ def authenticated_client(client, test_user):
     yield client
 
     app.dependency_overrides.clear()
-
-
-
-@pytest.fixture
-def test_user_cannot_get_another_users_note(client, db, test_user):
-    response = client.post(
-        "/notes",
-        json={
-            "title": "private note",
-            "content": "user 1 content",
-        },
-    )
-
-    assert response.status_code == 200
-
-    note_id = response.json()["id"]
-
-    other_user = User(
-        email="other@example.com",
-        password_hash="test_hash",
-    )
-
-    db.add(other_user)
-    db.commit()
-    db.refresh(other_user)
-
-    # Directly verify the ownership query using another user
-    response = client.get(f"/notes/{note_id}")
-
-    assert response.status_code == 200
-    

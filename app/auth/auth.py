@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import User
@@ -11,9 +11,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 
-def get_current_user(
+async def get_current_user(
         token: str = Depends(oauth2_scheme),
-        db: Session = Depends(get_db),
+        db: AsyncSession = Depends(get_db),
 ):
 
     
@@ -33,7 +33,7 @@ def get_current_user(
             detail= "Invalid token"
         )
 
-    user = db.get(User, int(user_id))
+    user = await db.get(User, int(user_id))
 
     if user is None:
         raise HTTPException(

@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session 
+from sqlalchemy.ext.asyncio import AsyncSession 
 from fastapi import HTTPException
 
 from app.models import User
@@ -11,35 +11,45 @@ from app.auth.security import create_access_token, create_refresh_token
 
 password_hash = PasswordHash.recommended()
 
-def register_user(
-        db: Session,
+async def register_user(
+        db: AsyncSession,
         email: str,
         password: str,
 ):
-    existing_user = repository.get_user_by_email(db, email)
+    try:
+        existing_user = await repository.get_user_by_email(db, email)
 
-    if existing_user is not None:
-        raise HTTPException(
-            status_code = 400,
-            detail= "Email already registered"
+        if existing_user is not None:
+            raise HTTPException(
+                status_code = 400,
+                detail= "Email already registered"
 
+            )
+
+        hashed_password = password_hash.hash(password)
+
+        user = User(
+            email=email,
+            password_hash=hashed_password,
         )
 
-    hashed_password = password_hash.hash(password)
+        user =  await repository.create_user(db, user)
 
-    user = User(
-        email=email,
-        password_hash=hashed_password,
-    )
+        await db.commit()
 
-    return repository.create_user(db, user)
+        return user
 
-def login_user(
-        db:Session,
+    except Exception:
+        await db.rollback()
+        raise
+   
+
+async def login_user(
+        db:AsyncSession,
         email: str,
         password: str,
 ):
-    user = repository.get_user_by_email(db, email)
+    user = await repository.get_user_by_email(db, email)
 
     if user is None:
         raise HTTPException(
@@ -59,7 +69,7 @@ def login_user(
     }
 
 
-def refresh_access_token(db: Session, token: str):
+async def refresh_access_token(db: AsyncSession, token: str):
 
     payload = security.decode_refresh_token(token)
 
@@ -77,7 +87,7 @@ def refresh_access_token(db: Session, token: str):
             detail= "Invalid token"
         )
 
-    user = db.get(User, int(user_id))
+    user = await db.get(User, int(user_id))
 
     if user is None:
         raise HTTPException(

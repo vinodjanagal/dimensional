@@ -1,17 +1,17 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories import note_repository
-from app.models import Note as NoteModel
+from app.models import Note as NoteModel,User
 
 
-def get_note(db: Session, note_id: int, user_id: int):
-    return note_repository.get_note(db, note_id, user_id)
+async def get_note(db: AsyncSession, note_id: int, user_id: int):
+    return await note_repository.get_note(db, note_id, user_id)
 
 
-def get_notes(db: Session, user_id: int):
-    return note_repository.get_notes(db, user_id)
+async def get_notes(db: AsyncSession, user_id: int):
+    return await note_repository.get_notes(db, user_id)
 
 
-def create_note(db: Session, title:str, content:str, user_id: int):
+async def create_note(db: AsyncSession, title:str, content:str, user_id: int):
 
     note = NoteModel(
         title=title,
@@ -20,40 +20,59 @@ def create_note(db: Session, title:str, content:str, user_id: int):
     )
 
     try:
-        note = note_repository.create_note(db, note)
-        db.commit()
+        note = await note_repository.create_note(db, note)
+        await db.commit()
         return note
 
     except Exception:
-        db.rollback()
+        await db.rollback()
         raise
         
 
-def update_note(
-    db: Session,
+async def update_note(
+    db: AsyncSession,
     note_id: int,
     title: str,
     content: str,
     user_id: int,
 ):
-    return note_repository.update_note(
-        db,
-        note_id,
-        title,
-        content,
-        user_id,
-    )
+
+    try:
+        note = await note_repository.update_note(
+            db,
+            note_id,
+            title,
+            content,
+            user_id,
+            )
+        if note is None:
+            return None
+        
+        await db.commit()
+        await db.refresh(note)
+
+        return note
+
+    except Exception:
+        await db.rollback()
+        raise
 
 
-def delete_note(db:Session, note_id: int, user_id: int):
-    return note_repository.delete_note(
+async def delete_note(db:AsyncSession, note_id: int, user_id: int):
+
+    try:
+        note = await note_repository.delete_note(
         db, 
         note_id, 
         user_id,
     )
 
+        if note is None:
+            return None
 
-
-
-
-
+        await db.commit()
+        return note
+    
+    except Exception:
+        await db.rollback()
+        raise
