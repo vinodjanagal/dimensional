@@ -1,6 +1,7 @@
 from sqlalchemy import String, DateTime, ForeignKey
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from datetime import datetime
+from sqlalchemy.orm import Mapped, mapped_column
+from datetime import datetime, timezone
+
 from app.models.base import Base
 
 
@@ -20,14 +21,14 @@ class Note(Base):
     content: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default= datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable= False
         )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     
