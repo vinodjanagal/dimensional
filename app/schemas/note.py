@@ -4,7 +4,6 @@ from datetime import datetime
 class NoteCreate(BaseModel):
     title: str
     content: str
-    
 
 class NoteResponse(BaseModel):
     id: int
@@ -17,5 +16,3 @@ class NoteResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
-
-    

@@ -2,7 +2,6 @@
 from app.models import Note as NoteModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 
 async def get_note(db: AsyncSession, note_id: int, user_id: int):

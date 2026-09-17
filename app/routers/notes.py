@@ -1,9 +1,9 @@
+from app.core.database import get_db
+from app.schemas import NoteResponse, NoteCreate
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.models import Note as NoteModel
-from app.schemas import NoteResponse, NoteCreate
 
 from app.services.note_service import (
     get_note,

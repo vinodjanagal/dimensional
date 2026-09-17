@@ -2,22 +2,36 @@ services:
   db:
     image: postgres:17
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Vedant@2026
-      POSTGRES_DB: notes_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  api:
+
+  migrator:                           # <-- NEW DOCKER SERVICE
+    build: .
+    env_file:
+      - .env
+    command: alembic upgrade head     # It runs migrations instead of the API
+    depends_on:
+      db:
+        condition: service_started
+
+
+  api:                                # <-- EXISTING API SERVICE
     build: .
     ports:
       - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql+psycopg://postgres:Vedant%402026@db:5432/notes_db
-    depends_on:
-      - db
+    env_file:
+      - .env
+    depends_on:                       # <-- UPDATE DEPENDENCIES
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_started
 
 volumes:
   postgres_data:
