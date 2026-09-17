@@ -1,80 +1,60 @@
 import pytest
+import pytest_asyncio
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models import Base, User, Note
-from app.settings import settings
+from app.core.config import settings
+from sqlalchemy import select
 
 
-TEST_DATABASE_URL = settings.database_url
-
-test_engine = create_engine(TEST_DATABASE_URL)
-
-TestingSessionLocal = sessionmaker(
-    bind=test_engine,
-    autoflush=False,
-    autocommit=False,
-)
-
-
-@pytest.fixture
-def db():
-    Base.metadata.create_all(bind=test_engine)
-
-    db = TestingSessionLocal()
-
-    try:
-        yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(bind=test_engine)
-
-
-def test_flush_then_rollback(db):
+@pytest.mark.asyncio
+async def test_flush_then_rollback(db):
     user = User(
         email="transaction@test.com",
         password_hash="test_hash",
     )
 
     db.add(user)
-    db.flush()
+    await db.flush()
 
     assert user.id is not None
 
-    db.rollback()
+    await db.rollback()
 
-    result = db.query(User).filter(User.id == user.id).first()
+    result = await db.execute(select(User).where(User.id == user.id))
+    found = result.scalar_one_or_none()
+    assert found is None
 
-    assert result is None
-
-
-def test_flush_then_commit_persists(db):
+@pytest.mark.asyncio
+async def test_flush_then_commit_persists(db):
     user = User(
         email="commit@test.com",
         password_hash="test_hash",
     )
 
     db.add(user)
-    db.flush()
+    await db.flush()
 
     assert user.id is not None
 
-    db.commit()
+    await db.commit()
 
-    result = db.query(User).filter(User.id == user.id).first()
+    result = await db.execute(select(User).where(User.id == user.id))
+    found = result.scalar_one_or_none()
 
-    assert result is not None
-    assert result.email == "commit@test.com"
+    assert found is not None
+    assert found.email == "commit@test.com"
 
-
-def test_rollback_undoes_multiple_operations(db):
+@pytest.mark.asyncio
+async def test_rollback_undoes_multiple_operations(db):
     user = User(
         email="multi@test.com",
         password_hash="test_hash",
     )
 
     db.add(user)
-    db.flush()
+    await db.flush()
 
     note = Note(
         owner_id=user.id,
@@ -83,15 +63,19 @@ def test_rollback_undoes_multiple_operations(db):
     )
 
     db.add(note)
-    db.flush()
+    await db.flush()
 
     assert user.id is not None
     assert note.id is not None
 
-    db.rollback()
+    await db.rollback()
 
-    saved_user = db.query(User).filter(User.id == user.id).first()
-    saved_note = db.query(Note).filter(Note.id == note.id).first()
+
+    result = await db.execute(select(User).where(User.id == user.id))
+    saved_user = result.scalar_one_or_none()
+
+    found = await db.execute(select(Note).where(Note.id == note.id))
+    saved_note = found.scalar_one_or_none()
 
     assert saved_user is None
     assert saved_note is None
