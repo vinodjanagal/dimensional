@@ -9,29 +9,39 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 
-  migrator:                           # <-- NEW DOCKER SERVICE
+  migrator:
     build: .
     env_file:
       - .env
-    command: alembic upgrade head     # It runs migrations instead of the API
+    volumes:
+      - .:/app
+    command: alembic upgrade head
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
 
 
-  api:                                # <-- EXISTING API SERVICE
+  api:
     build: .
     ports:
       - "8000:8000"
     env_file:
       - .env
-    depends_on:                       # <-- UPDATE DEPENDENCIES
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
       migrator:
         condition: service_completed_successfully
       db:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   postgres_data:
