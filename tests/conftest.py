@@ -40,6 +40,9 @@ async def db():
         await conn.run_sync(Base.metadata.create_all)
 
     async with TestingSessionLocal() as session:
+        from scripts.seed_units import seed_units
+        await seed_units(session)
+        await session.commit()
         yield session
         await session.rollback()
 
