@@ -1,6 +1,10 @@
 """Seed the unit system. Idempotent — safe to run repeatedly.
 
-Run after `alembic upgrade head`.
+Derived units are *computed* from base dimensions, not hardcoded.
+This eliminates the class of bug where a typo in a hardcoded vector
+lies dormant until it silently corrupts a downstream calculation.
+
+Run after `alembic upgrade head`:
 
   Host:       python -m scripts.seed_units
   Container:  docker compose run --rm api python -m scripts.seed_units
@@ -8,6 +12,7 @@ Run after `alembic upgrade head`.
 
 import asyncio
 from decimal import Decimal
+from typing import NamedTuple
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -15,32 +20,84 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import SessionLocal
 from app.models import Unit
+from app.services.dimension import (
+    Dimension,
+    divide,
+    multiply,
+    power,
+)
 
 
-# Dimension order: (M, L, T, I, Θ, N, J)
-# fmt: off
-BASE_UNITS = [
-    {"name": "kilogram", "symbol": "kg",  "dimension": [1, 0, 0, 0, 0, 0, 0]},
-    {"name": "meter",    "symbol": "m",   "dimension": [0, 1, 0, 0, 0, 0, 0]},
-    {"name": "second",   "symbol": "s",   "dimension": [0, 0, 1, 0, 0, 0, 0]},
-    {"name": "ampere",   "symbol": "A",   "dimension": [0, 0, 0, 1, 0, 0, 0]},
-    {"name": "kelvin",   "symbol": "K",   "dimension": [0, 0, 0, 0, 1, 0, 0]},
-    {"name": "mole",     "symbol": "mol", "dimension": [0, 0, 0, 0, 0, 1, 0]},
-    {"name": "candela",  "symbol": "cd",  "dimension": [0, 0, 0, 0, 0, 0, 1]},
+# ---- Base dimension constants (the seven SI base dimensions) ----
+# Order: (M, L, T, I, Θ, N, J)
+DIM_MASS        = (1, 0, 0, 0, 0, 0, 0)
+DIM_LENGTH      = (0, 1, 0, 0, 0, 0, 0)
+DIM_TIME        = (0, 0, 1, 0, 0, 0, 0)
+DIM_CURRENT     = (0, 0, 0, 1, 0, 0, 0)
+DIM_TEMPERATURE = (0, 0, 0, 0, 1, 0, 0)
+DIM_AMOUNT      = (0, 0, 0, 0, 0, 1, 0)
+DIM_LUMINOUS    = (0, 0, 0, 0, 0, 0, 1)
+
+# ---- Derived dimensions, computed from the base ones ----
+DIM_FORCE     = divide(multiply(DIM_MASS, DIM_LENGTH), power(DIM_TIME, 2))   # N
+DIM_ENERGY    = multiply(DIM_FORCE, DIM_LENGTH)                              # J
+DIM_POWER     = divide(DIM_ENERGY, DIM_TIME)                                 # W
+DIM_PRESSURE  = divide(DIM_FORCE, power(DIM_LENGTH, 2))                      # Pa
+DIM_FREQUENCY = divide((0, 0, 0, 0, 0, 0, 0), DIM_TIME)                      # Hz
+DIM_CHARGE    = multiply(DIM_CURRENT, DIM_TIME)                              # C
+DIM_VOLTAGE   = divide(DIM_POWER, DIM_CURRENT)                               # V
+DIM_RESISTANCE = divide(DIM_VOLTAGE, DIM_CURRENT)                            # Ω
+
+
+class BaseUnit(NamedTuple):
+    name: str
+    symbol: str
+    dimension: Dimension
+
+
+class DerivedUnit(NamedTuple):
+    name: str
+    symbol: str
+    dimension: Dimension
+    factor: Decimal
+    offset: Decimal
+    base_symbol: str
+
+
+BASE_UNITS: list[BaseUnit] = [
+    BaseUnit("kilogram", "kg",  DIM_MASS),
+    BaseUnit("meter",    "m",   DIM_LENGTH),
+    BaseUnit("second",   "s",   DIM_TIME),
+    BaseUnit("ampere",   "A",   DIM_CURRENT),
+    BaseUnit("kelvin",   "K",   DIM_TEMPERATURE),
+    BaseUnit("mole",     "mol", DIM_AMOUNT),
+    BaseUnit("candela",  "cd",  DIM_LUMINOUS),
 ]
 
-DERIVED_UNITS = [
-    ("kilometer",      "km",  [0, 1, 0, 0, 0, 0, 0], Decimal("1000"),     Decimal("0"), "m"),
-    ("centimeter",     "cm",  [0, 1, 0, 0, 0, 0, 0], Decimal("0.01"),     Decimal("0"), "m"),
-    ("millimeter",     "mm",  [0, 1, 0, 0, 0, 0, 0], Decimal("0.001"),    Decimal("0"), "m"),
-    ("gram",           "g",   [1, 0, 0, 0, 0, 0, 0], Decimal("0.001"),    Decimal("0"), "kg"),
-    ("milligram",      "mg",  [1, 0, 0, 0, 0, 0, 0], Decimal("0.000001"), Decimal("0"), "kg"),
-    ("minute",         "min", [0, 0, 1, 0, 0, 0, 0], Decimal("60"),       Decimal("0"), "s"),
-    ("hour",           "h",   [0, 0, 1, 0, 0, 0, 0], Decimal("3600"),     Decimal("0"), "s"),
-    ("day",            "d",   [0, 0, 1, 0, 0, 0, 0], Decimal("86400"),    Decimal("0"), "s"),
-    ("degree Celsius", "°C",  [0, 0, 0, 0, 1, 0, 0], Decimal("1"),        Decimal("273.15"), "K"),
+DERIVED_UNITS: list[DerivedUnit] = [
+    # Prefixed length
+    DerivedUnit("kilometer",  "km", DIM_LENGTH,  Decimal("1000"),     Decimal("0"), "m"),
+    DerivedUnit("centimeter", "cm", DIM_LENGTH,  Decimal("0.01"),     Decimal("0"), "m"),
+    DerivedUnit("millimeter", "mm", DIM_LENGTH,  Decimal("0.001"),    Decimal("0"), "m"),
+    # Prefixed mass
+    DerivedUnit("gram",       "g",  DIM_MASS,    Decimal("0.001"),    Decimal("0"), "kg"),
+    DerivedUnit("milligram",  "mg", DIM_MASS,    Decimal("0.000001"), Decimal("0"), "kg"),
+    # Time
+    DerivedUnit("minute",     "min", DIM_TIME,   Decimal("60"),       Decimal("0"), "s"),
+    DerivedUnit("hour",       "h",   DIM_TIME,   Decimal("3600"),     Decimal("0"), "s"),
+    DerivedUnit("day",        "d",   DIM_TIME,   Decimal("86400"),    Decimal("0"), "s"),
+    # Temperature (affine)
+    DerivedUnit("degree Celsius", "°C", DIM_TEMPERATURE, Decimal("1"), Decimal("273.15"), "K"),
+    # Named SI derived units
+    DerivedUnit("newton",   "N",  DIM_FORCE,      Decimal("1"), Decimal("0"), "kg"),
+    DerivedUnit("joule",    "J",  DIM_ENERGY,     Decimal("1"), Decimal("0"), "kg"),
+    DerivedUnit("watt",     "W",  DIM_POWER,      Decimal("1"), Decimal("0"), "kg"),
+    DerivedUnit("pascal",   "Pa", DIM_PRESSURE,   Decimal("1"), Decimal("0"), "kg"),
+    DerivedUnit("hertz",    "Hz", DIM_FREQUENCY,  Decimal("1"), Decimal("0"), "s"),
+    DerivedUnit("coulomb",  "C",  DIM_CHARGE,     Decimal("1"), Decimal("0"), "A"),
+    DerivedUnit("volt",     "V",  DIM_VOLTAGE,    Decimal("1"), Decimal("0"), "kg"),
+    DerivedUnit("ohm",      "Ω",  DIM_RESISTANCE, Decimal("1"), Decimal("0"), "kg"),
 ]
-# fmt: on
 
 
 async def seed_units(db: AsyncSession) -> int:
@@ -50,9 +107,9 @@ async def seed_units(db: AsyncSession) -> int:
         stmt = (
             insert(Unit)
             .values(
-                name=u["name"],
-                symbol=u["symbol"],
-                dimension=u["dimension"],
+                name=u.name,
+                symbol=u.symbol,
+                dimension=list(u.dimension),
                 factor=Decimal("1"),
                 offset=Decimal("0"),
                 is_base=True,
@@ -67,21 +124,21 @@ async def seed_units(db: AsyncSession) -> int:
     result = await db.execute(select(Unit).where(Unit.is_base.is_(True)))
     base_by_symbol = {u.symbol: u.id for u in result.scalars().all()}
 
-    for name, symbol, dim, factor, offset, base_symbol in DERIVED_UNITS:
-        base_id = base_by_symbol.get(base_symbol)
+    for u in DERIVED_UNITS:
+        base_id = base_by_symbol.get(u.base_symbol)
         if base_id is None:
             raise RuntimeError(
-                f"Base unit {base_symbol!r} not found; seed base units first"
+                f"Base unit {u.base_symbol!r} not found; seed base units first"
             )
 
         stmt = (
             insert(Unit)
             .values(
-                name=name,
-                symbol=symbol,
-                dimension=dim,
-                factor=factor,
-                offset=offset,
+                name=u.name,
+                symbol=u.symbol,
+                dimension=list(u.dimension),
+                factor=u.factor,
+                offset=u.offset,
                 is_base=False,
                 base_unit_id=base_id,
             )
@@ -99,13 +156,11 @@ async def _cli() -> None:
         total = await seed_units(db)
         await db.commit()
 
-        all_units = (await db.execute(select(Unit))).scalars().all()
+        all_units = (await db.execute(select(Unit).order_by(Unit.symbol))).scalars().all()
         print(f"\nUnits in DB: {total}")
-        for u in sorted(all_units, key=lambda x: x.symbol):
-            print(
-                f"  {u.symbol:5s} {u.name:20s} "
-                f"dim={u.dimension} factor={u.factor} offset={u.offset}"
-            )
+        for u in all_units:
+            base = "base" if u.is_base else f"→ {u.base_unit_id}"
+            print(f"  {u.symbol:5s} {u.name:18s} dim={u.dimension} {base}")
 
 
 if __name__ == "__main__":

@@ -11,28 +11,18 @@ from app.main import app
 from app.models import Base, User
 from app.auth.auth import get_current_user
 
-
 if sys.platform == "win32":
+    # psycopg (async) requires a SelectorEventLoop on Windows.
+    # The default ProactorEventLoop does not support the socket
+    # primitives async SQLAlchemy relies on.
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-
-def _make_test_url(url: str) -> str:
-    base, _, _ = url.rpartition("/")
-    return f"{base}/notes_test"
-
-if settings.test_database_url:
-    TEST_DATABASE_URL = settings.test_database_url
-else:
-    # Fallback: reuse DATABASE_URL but point at localhost
-    base, _, _ = settings.database_url.rpartition("/")
-    base = base.replace("@db:", "@localhost:")
-    TEST_DATABASE_URL = f"{base}/notes_test"
+TEST_DATABASE_URL = settings.test_database_url
 
 test_engine = create_async_engine(TEST_DATABASE_URL, pool_pre_ping=True)
 TestingSessionLocal = async_sessionmaker(
     bind=test_engine, autoflush=False, expire_on_commit=False
 )
-
 
 @pytest_asyncio.fixture
 async def db():
