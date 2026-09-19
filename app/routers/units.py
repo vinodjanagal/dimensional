@@ -16,6 +16,8 @@ from app.services.unit_service import (
     is_compatible,
 )
 
+from app.schemas.unit import ValidateExpressionRequest, ValidateExpressionResponse
+from app.services.expression import ExpressionError, evaluate_dimension
 
 router = APIRouter(prefix="/units", tags=["Units"])
 
@@ -77,4 +79,39 @@ async def check_compatibility(
         compatible=is_compatible(a, b),
         a_dimension=a.dimension,
         b_dimension=b.dimension,
+    )
+
+@router.post("/validate-expression", response_model=ValidateExpressionResponse)
+async def validate_expression(
+    req: ValidateExpressionRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    # Build a lookup over ALL units in the DB
+    all_units = await unit_repository.list_all(db)
+    lookup = {u.symbol: tuple(u.dimension) for u in all_units}
+
+    expected = await unit_repository.get_by_symbol(db, req.expected_unit)
+    if expected is None:
+        raise HTTPException(404, f"Unknown expected unit: {req.expected_unit!r}")
+
+    try:
+        expr_dim = evaluate_dimension(req.expression, lookup.__getitem__)
+    except ExpressionError as e:
+        raise HTTPException(422, str(e))
+
+    expected_dim = tuple(expected.dimension)
+    valid = expr_dim == expected_dim
+
+    return ValidateExpressionResponse(
+        valid=valid,
+        expression=req.expression,
+        expression_dimension=list(expr_dim),
+        expected_unit=req.expected_unit,
+        expected_dimension=list(expected_dim),
+        message=(
+            None
+            if valid
+            else f"Expression has dimension {list(expr_dim)}, "
+                 f"but unit {req.expected_unit!r} has {list(expected_dim)}"
+        ),
     )

@@ -76,3 +76,50 @@ async def test_check_compatibility_kg_m(client):
     )
     assert response.status_code == 200
     assert response.json()["compatible"] is False
+
+
+@pytest.mark.asyncio
+async def test_validate_expression_valid(client):
+    response = await client.post(
+        "/units/validate-expression",
+        json={"expression": "kg * m / s ** 2", "expected_unit": "N"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is True
+    assert body["expression_dimension"] == [1, 1, -2, 0, 0, 0, 0]
+    assert body["expected_dimension"] == [1, 1, -2, 0, 0, 0, 0]
+    assert body["message"] is None
+
+
+@pytest.mark.asyncio
+async def test_validate_expression_invalid(client):
+    response = await client.post(
+        "/units/validate-expression",
+        json={"expression": "kg * m / s", "expected_unit": "N"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is False
+    assert body["expression_dimension"] == [1, 1, -1, 0, 0, 0, 0]
+    assert body["expected_dimension"] == [1, 1, -2, 0, 0, 0, 0]
+    assert "message" in body and body["message"] is not None
+
+
+@pytest.mark.asyncio
+async def test_validate_expression_unknown_symbol(client):
+    response = await client.post(
+        "/units/validate-expression",
+        json={"expression": "foo * m", "expected_unit": "N"},
+    )
+    assert response.status_code == 422
+    assert "foo" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_validate_expression_unknown_expected_unit(client):
+    response = await client.post(
+        "/units/validate-expression",
+        json={"expression": "kg * m", "expected_unit": "furlong"},
+    )
+    assert response.status_code == 404
