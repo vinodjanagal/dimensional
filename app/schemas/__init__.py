@@ -5,6 +5,8 @@ from app.schemas.unit import (
     ConversionRequest,
     ConversionResponse,
     UnitResponse,
+    ValidateExpressionRequest,
+    ValidateExpressionResponse,
 )
 
 __all__ = [
@@ -15,4 +17,7 @@ __all__ = [
     "NoteCreate",
     "NoteResponse",
     "UnitResponse",
+    "ValidateExpressionRequest",
+    "ValidateExpressionResponse",
+
 ]

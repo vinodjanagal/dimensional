@@ -41,3 +41,16 @@ class CompatibilityResponse(BaseModel):
     compatible: bool
     a_dimension: list[int]
     b_dimension: list[int]
+
+class ValidateExpressionRequest(BaseModel):
+    expression: str = Field(..., examples=["kg * m / s ** 2"])
+    expected_unit: str = Field(..., examples=["N"])
+
+
+class ValidateExpressionResponse(BaseModel):
+    valid: bool
+    expression: str
+    expression_dimension: list[int]
+    expected_unit: str
+    expected_dimension: list[int]
+    message: str | None = None
