@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
-
+from app.models.unit import Unit
 
 class Formula(Base):
     __tablename__ = "formulas"
@@ -39,6 +39,8 @@ class Formula(Base):
     __table_args__ = (
         UniqueConstraint("note_id", "name", name="uq_formulas_note_id_name"),
     )
+
+    result_unit: Mapped["Unit"] = relationship("Unit", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<Formula {self.name} = {self.expression}>"

@@ -2,9 +2,11 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import DateTime, ForeignKey, Numeric
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+from app.models.unit import Unit
 
 
 class Quantity(Base):
@@ -43,6 +45,9 @@ class Quantity(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+    # cspell:ignore selectin
+    unit: Mapped["Unit"] = relationship("Unit", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<Quantity {self.value} unit_id={self.unit_id}>"
