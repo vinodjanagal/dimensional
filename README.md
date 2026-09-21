@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/vinodjanagal/dimensional/actions/workflows/ci.yml/badge.svg)](https://github.com/vinodjanagal/dimensional/actions/workflows/ci.yml)
 
+**Live:** https://dimensional.onrender.com — [API docs](https://dimensional.onrender.com/docs) · [Interactive demo](https://dimensional.onrender.com/redoc)
+
+> Free tier spins down after 15 minutes of inactivity. First request may take ~30 seconds to wake the service.
+
 A unit-aware, dimension-checking backend for physics and math notes.
 
 Dimensional stores measurements, formulas, and derivations with one guarantee: **a dimensionally invalid formula cannot exist in the database.** Write `E = m · v²`, the API accepts. Write `E = m · v`, the API rejects — before the row is ever written.
