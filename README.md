@@ -25,13 +25,13 @@ Dimensional is a small defense against that class of bug. Every unit is encoded 
 
 ```mermaid
 flowchart LR
-    Client[Client] -->|HTTP| Router[FastAPI Routers]
-    Router -->|Depends| Auth[JWT Auth]
-    Router -->|Business logic| Service[Services]
-    Service -->|Queries| Repo[Repositories]
-    Repo -->|SQL| DB[(PostgreSQL 17)]
-    Service -->|Pure functions| Physics[Dimension engine<br/>algebra + parser]
-
+    Client["Client"] -->|HTTP| Router["FastAPI Routers"]
+    Router -->|Depends| Auth["JWT Auth"]
+    Router -->|Business logic| Service["Services"]
+    Service -->|Queries| Repo["Repositories"]
+    Repo -->|SQL| DB[("PostgreSQL 17")]
+    Service -->|Pure functions| Physics["Dimension engine"]
+```
 
 **Why Mermaid:** GitHub renders Mermaid natively. No external image files, no broken links, version-controlled alongside the code. If the diagram changes, the code and the diagram change in the same commit.
 
