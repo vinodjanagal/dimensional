@@ -1,4 +1,6 @@
+from app.schemas.formula import FormulaCreate, FormulaResponse
 from app.schemas.note import NoteCreate, NoteResponse
+from app.schemas.quantity import QuantityCreate, QuantityResponse
 from app.schemas.unit import (
     CompatibilityRequest,
     CompatibilityResponse,
@@ -14,10 +16,13 @@ __all__ = [
     "CompatibilityResponse",
     "ConversionRequest",
     "ConversionResponse",
+    "FormulaCreate",
+    "FormulaResponse",
     "NoteCreate",
     "NoteResponse",
+    "QuantityCreate",
+    "QuantityResponse",
     "UnitResponse",
     "ValidateExpressionRequest",
     "ValidateExpressionResponse",
-
 ]
