@@ -1,4 +1,3 @@
-import os
 from logging.config import fileConfig
 
 from sqlalchemy import create_engine
@@ -6,13 +5,8 @@ from sqlalchemy import pool
 
 from alembic import context
 
+from app.core.config import settings
 from app.models import Base
-
-from pathlib import Path
-from dotenv import load_dotenv
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
 
 config = context.config
 
@@ -23,15 +17,9 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in offline mode."""
-
-    database_url = os.getenv("DATABASE_URL")
-
-    if not database_url:
-        database_url = config.get_main_option("sqlalchemy.url")
-
+    """Run migrations without a live DB connection (used with --sql)."""
     context.configure(
-        url=database_url,
+        url=settings.database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -42,17 +30,11 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in online mode."""
-
-    database_url = os.getenv("DATABASE_URL")
-
-    if database_url:
-        connectable = create_engine(
-            database_url,
-            poolclass=pool.NullPool,
-        )
-    else:
-        raise RuntimeError("DATABASE_URL is not set")
+    """Run migrations against a live database."""
+    connectable = create_engine(
+        settings.database_url,
+        poolclass=pool.NullPool,
+    )
 
     with connectable.connect() as connection:
         context.configure(
