@@ -1,22 +1,22 @@
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
-
+from app.schemas.types import DecimalStr
 
 class UnitResponse(BaseModel):
     id: int
     name: str
     symbol: str
     dimension: list[int]
-    factor: Decimal
-    offset: Decimal
+    factor: DecimalStr
+    offset: DecimalStr
     is_base: bool
 
     model_config = {"from_attributes": True}
 
 
 class ConversionRequest(BaseModel):
-    value: Decimal = Field(
+    value: DecimalStr = Field(
         ...,
         description="The numeric value to convert",
         examples=["5", "273.15"],
@@ -26,7 +26,7 @@ class ConversionRequest(BaseModel):
 
 
 class ConversionResponse(BaseModel):
-    value: Decimal = Field(..., description="Converted numeric value")
+    value: DecimalStr = Field(..., description="Converted numeric value")
     unit: str = Field(..., description="Target unit symbol")
     input_value: Decimal
     input_unit: str

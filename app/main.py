@@ -10,6 +10,8 @@ from app.core.database import get_db
 from app.routers import notes
 from app.routers import auth as auth_router
 from app.routers import units as units_router
+from app.routers import formulas as formulas_router
+from app.routers import quantities as quantities_router
 
 app = FastAPI(title="Notes API")
 
@@ -30,6 +32,8 @@ def root():
 app.include_router(notes.router)
 app.include_router(auth_router.router)
 app.include_router(units_router.router)
+app.include_router(quantities_router.router)
+app.include_router(formulas_router.router)
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
