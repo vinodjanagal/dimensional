@@ -58,3 +58,5 @@ docker compose run --rm api python -m scripts.seed_units
 
 # API on http://localhost:8000/docs
 docker compose up -d api
+'''
+---
