@@ -24,23 +24,32 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     environment: str = "development"
 
+    # Optional. Set to "require" for managed databases like Neon.
+    postgres_sslmode: str | None = None
+
     @computed_field
     @property
     def database_url(self) -> str:
         pwd = quote_plus(self.postgres_password)
-        return (
+        url = (
             f"postgresql+psycopg://{self.postgres_user}:{pwd}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+        if self.postgres_sslmode:
+            url += f"?sslmode={self.postgres_sslmode}"
+        return url
 
     @computed_field
     @property
     def test_database_url(self) -> str:
         pwd = quote_plus(self.postgres_password)
-        return (
+        url = (
             f"postgresql+psycopg://{self.postgres_user}:{pwd}"
             f"@{self.test_postgres_host}:{self.test_postgres_port}/{self.test_postgres_db}"
         )
+        if self.postgres_sslmode:
+            url += f"?sslmode={self.postgres_sslmode}"
+        return url
 
     model_config = SettingsConfigDict(
         env_file=".env",
