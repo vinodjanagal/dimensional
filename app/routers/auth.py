@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from fastapi.security import OAuth2PasswordRequestForm
 
 from app.auth.schemas import (
     UserRegister,
@@ -62,3 +63,20 @@ async def refresh(
     return {
         "access_token": access_token,
     }
+
+@router.post("/token", response_model=TokenResponse, include_in_schema=True)
+async def login_form(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    """OAuth2 password-flow token endpoint.
+
+    Used by Swagger UI's Authorize button. Accepts form-encoded data
+    (username/password) as required by the OAuth2 spec. The `username`
+    field carries the user's email.
+    """
+    return await login_user(
+        db,
+        form_data.username,
+        form_data.password,
+    )
