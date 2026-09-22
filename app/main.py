@@ -13,7 +13,26 @@ from app.routers import units as units_router
 from app.routers import formulas as formulas_router
 from app.routers import quantities as quantities_router
 
-app = FastAPI(title="Notes API")
+from contextlib import asynccontextmanager
+
+from arq import create_pool
+from arq.connections import RedisSettings
+
+from app.core.config import settings
+from app.routers import jobs as jobs_router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.arq_pool = await create_pool(
+        RedisSettings.from_dsn(settings.redis_url)
+    )
+    try:
+        yield
+    finally:
+        await app.state.arq_pool.close()
+
+
+app = FastAPI(title="Notes API", lifespan=lifespan)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +53,7 @@ app.include_router(auth_router.router)
 app.include_router(units_router.router)
 app.include_router(quantities_router.router)
 app.include_router(formulas_router.router)
+app.include_router(jobs_router.router)
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):

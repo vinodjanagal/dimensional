@@ -1,4 +1,5 @@
 from app.schemas.formula import FormulaCreate, FormulaResponse
+from app.schemas.job import JobEnqueuedResponse, JobResponse
 from app.schemas.note import NoteCreate, NoteResponse
 from app.schemas.quantity import QuantityCreate, QuantityResponse
 from app.schemas.unit import (
@@ -18,6 +19,8 @@ __all__ = [
     "ConversionResponse",
     "FormulaCreate",
     "FormulaResponse",
+    "JobEnqueuedResponse",
+    "JobResponse",
     "NoteCreate",
     "NoteResponse",
     "QuantityCreate",

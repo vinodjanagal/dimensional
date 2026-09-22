@@ -1,6 +1,7 @@
 import asyncio
 import sys
 
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -10,6 +11,7 @@ from app.core.database import get_db
 from app.main import app
 from app.models import Base, User
 from app.auth.auth import get_current_user
+from app.routers.jobs import get_arq_pool
 
 if sys.platform == "win32":
     # psycopg (async) requires a SelectorEventLoop on Windows.
@@ -69,3 +71,31 @@ async def authenticated_client(client, test_user):
     app.dependency_overrides[get_current_user] = override_get_current_user
     yield client
     app.dependency_overrides.clear()
+
+
+class FakeArqPool:
+    """Test double for the Arq Redis pool.
+
+    Records enqueued jobs and returns None (the real pool returns an
+    ArqJob object, which tests do not need).
+    """
+
+    def __init__(self):
+        self.enqueued: list[tuple[str, dict]] = []
+
+    async def enqueue_job(self, function: str, **kwargs):
+        self.enqueued.append((function, kwargs))
+        return None
+
+
+@pytest_asyncio.fixture
+async def fake_arq():
+    """Return a FakeArqPool and register it as a dependency override."""
+    pool = FakeArqPool()
+
+    async def override():
+        return pool
+
+    app.dependency_overrides[get_arq_pool] = override
+    yield pool
+    app.dependency_overrides.pop(get_arq_pool, None)

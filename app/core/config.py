@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     # Optional. Set to "require" for managed databases like Neon.
     postgres_sslmode: str | None = None
 
+    redis_url: str = "redis://redis:6379/0"
+
     @computed_field
     @property
     def database_url(self) -> str:
