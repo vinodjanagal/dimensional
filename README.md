@@ -212,6 +212,30 @@ A few decisions that might look odd, and why:
 - **Pure services, no DB in the engine.** `unit_service.convert`, `dimension.multiply`, and `expression.evaluate_dimension` take plain values and return plain values. 68 of the 129 tests run in under a second because they never touch a database.
 - **Domain exceptions, not HTTP exceptions, in the service layer.** `formula_service.create_formula()` raises `ValidationError`, not `HTTPException`. The router translates. This lets CLI scripts, background jobs, and tests reuse the same service without faking HTTP.
 
+## Deployment
+
+| Component | Platform |
+|---|---|
+| API | Render Web Service |
+| Database | Neon PostgreSQL |
+| Queue | Upstash Redis |
+| Worker | ARQ worker running in Docker |
+
+### Architecture
+
+The FastAPI API is deployed independently from the ARQ background
+worker.
+
+API requests that require asynchronous processing create a job and
+enqueue it in Upstash Redis. The ARQ worker consumes jobs from Redis
+and persists results to Neon PostgreSQL.
+
+During the current portfolio/demo deployment, the ARQ worker runs
+locally in Docker:
+
+```bash
+docker compose up worker
+
 ## License
 
 MIT
