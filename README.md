@@ -70,7 +70,7 @@ docker compose up -d db
 pytest -v
 ```
 
-`pytest.ini` configures the test DB automatically. 129 tests run in about 15 seconds.
+`pytest.ini` configures the test DB automatically. 138 tests run in about 15 seconds.
 
 ## The dimensional engine
 
@@ -183,7 +183,7 @@ Full interactive docs at `/docs` (OpenAPI / Swagger UI) and `/redoc`.
 pytest -v
 ```
 
-129 tests, ~15 seconds. Coverage:
+138 tests, ~15 seconds. Coverage:
 
 - **27 tests** — auth, notes CRUD, ownership
 - **21 tests** — dimension algebra (commutativity, associativity, distributivity)
@@ -209,7 +209,7 @@ A few decisions that might look odd, and why:
 
 - **`Decimal`, never `float`.** IEEE 754 cannot represent `0.1` exactly. Convert `0.1 km → cm → km` a thousand times with floats, and you get drift. `NUMERIC(38, 20)` does not. For a physics tool, exactness is not optional.
 - **Named foreign keys.** Every FK is explicitly named (`fk_quantities_note_id_notes`). Autogenerate produces `None`, which breaks `alembic downgrade`. Named constraints are reversible.
-- **Pure services, no DB in the engine.** `unit_service.convert`, `dimension.multiply`, and `expression.evaluate_dimension` take plain values and return plain values. 68 of the 129 tests run in under a second because they never touch a database.
+- **Pure services, no DB in the engine.** `unit_service.convert`, `dimension.multiply`, and `expression.evaluate_dimension` take plain values and return plain values. 80 of the 138 tests run in under a second because they never touch a database.
 - **Domain exceptions, not HTTP exceptions, in the service layer.** `formula_service.create_formula()` raises `ValidationError`, not `HTTPException`. The router translates. This lets CLI scripts, background jobs, and tests reuse the same service without faking HTTP.
 
 ## Deployment
@@ -243,4 +243,3 @@ MIT
 ## Author
 
 Vinod Kumar — [github.com/vinodjanagal](https://github.com/vinodjanagal) — vinodjanagal.4910@gmail.com
-
