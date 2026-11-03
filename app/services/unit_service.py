@@ -4,24 +4,8 @@ Pure functions. No DB. No I/O. All inputs are value objects.
 """
 
 from decimal import Decimal
-
 from app.models import Unit
-
-
-class UnitError(Exception):
-    """Base class for unit-related errors."""
-
-
-class IncompatibleUnitsError(UnitError):
-    """Raised when two units have different dimensions."""
-
-    def __init__(self, a: Unit, b: Unit) -> None:
-        super().__init__(
-            f"Cannot convert between {a.symbol!r} and {b.symbol!r}: "
-            f"dimensions {a.dimension} and {b.dimension} differ"
-        )
-        self.a = a
-        self.b = b
+from app.services.exceptions import IncompatibleUnitsError
 
 
 def is_compatible(a: Unit, b: Unit) -> bool:

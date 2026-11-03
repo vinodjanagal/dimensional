@@ -1,8 +1,7 @@
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
-from fastapi.security import OAuth2PasswordRequestForm
 
 from app.auth.schemas import (
     UserRegister,
@@ -26,7 +25,7 @@ router = APIRouter(
     tags=["Authentication"]
 )
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=UserResponse, status_code=201,)
 async def register(
     user_data: UserRegister,
     db: AsyncSession = Depends(get_db)

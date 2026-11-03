@@ -7,6 +7,7 @@ from app.main import app
 from datetime import datetime, timedelta, timezone
 from app.auth.security import create_access_token
 
+
 @pytest.mark.asyncio
 async def test_register_user(client):
     response = await client.post(
@@ -17,13 +18,14 @@ async def test_register_user(client):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()
 
     assert data["email"] == "new@example.com"
     assert "password" not in data
     assert "password_hash" not in data
+
 
 @pytest.mark.asyncio
 async def test_register_duplicate_email(client):
@@ -37,15 +39,16 @@ async def test_register_duplicate_email(client):
         json=payload,
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     response = await client.post(
         "/auth/register",
         json=payload,
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 409
     assert response.json()["detail"] == "Email already registered"
+
 
 @pytest.mark.asyncio
 async def test_login_user(client):
@@ -57,7 +60,7 @@ async def test_login_user(client):
         },
     )
 
-    assert register_response.status_code == 200
+    assert register_response.status_code == 201
 
     user_id = register_response.json()["id"]
 
@@ -91,6 +94,7 @@ async def test_login_user(client):
     assert refresh_payload["sub"] == str(user_id)
     assert refresh_payload["type"] == "refresh"
 
+    assert data["token_type"] == "bearer"
 
 
 @pytest.mark.asyncio
@@ -114,6 +118,7 @@ async def test_login_wrong_password(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid email or password"
 
+
 @pytest.mark.asyncio
 async def test_login_nonexistent_email(client):
     response = await client.post(
@@ -127,6 +132,7 @@ async def test_login_nonexistent_email(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid email or password"
 
+
 @pytest.mark.asyncio
 async def test_notes_requires_authentication(client):
     app.dependency_overrides.pop(get_current_user, None)
@@ -134,6 +140,7 @@ async def test_notes_requires_authentication(client):
     response = await client.get("/notes")
 
     assert response.status_code == 401
+
 
 @pytest.mark.asyncio
 async def test_notes_with_valid_token(client):
@@ -166,6 +173,7 @@ async def test_notes_with_valid_token(client):
 
     assert response.status_code == 200
 
+
 @pytest.mark.asyncio
 async def test_notes_with_invalid_token(client):
     response = await client.get(
@@ -177,6 +185,7 @@ async def test_notes_with_invalid_token(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired token"
+
 
 @pytest.mark.asyncio
 async def test_notes_with_expired_token(client):
@@ -200,6 +209,7 @@ async def test_notes_with_expired_token(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired token"
+
 
 @pytest.mark.asyncio
 async def test_notes_with_tampered_token(client):
@@ -234,6 +244,7 @@ async def test_notes_with_tampered_token(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired token"
 
+
 @pytest.mark.asyncio
 async def test_notes_with_token_for_nonexistent_user(client):
     token = create_access_token(999999)
@@ -248,13 +259,13 @@ async def test_notes_with_token_for_nonexistent_user(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "User not found"
 
+
 @pytest.mark.asyncio
 async def test_user_cannot_access_another_users_note(
     authenticated_client,
     db,
     test_user,
 ):
-    # User 1 creates a note
     response = await authenticated_client.post(
         "/notes",
         json={
@@ -263,11 +274,10 @@ async def test_user_cannot_access_another_users_note(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     note_id = response.json()["id"]
 
-    # Create User 2
     other_user = User(
         email="other-user@example.com",
         password_hash="test_hash",
@@ -277,17 +287,16 @@ async def test_user_cannot_access_another_users_note(
     await db.commit()
     await db.refresh(other_user)
 
-    # Switch the authenticated user to User 2
     async def override_get_current_user():
         return other_user
 
     app.dependency_overrides[get_current_user] = override_get_current_user
 
-    # User 2 tries to access User 1's note
     response = await authenticated_client.get(f"/notes/{note_id}")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Note not found"
+
 
 @pytest.mark.asyncio
 async def test_user_cannot_update_another_users_note(
@@ -295,7 +304,6 @@ async def test_user_cannot_update_another_users_note(
     db,
     test_user,
 ):
-    # User 1 creates a note
     response = await authenticated_client.post(
         "/notes",
         json={
@@ -304,11 +312,10 @@ async def test_user_cannot_update_another_users_note(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     note_id = response.json()["id"]
 
-    # Create User 2
     other_user = User(
         email="update-other-user@example.com",
         password_hash="test_hash",
@@ -318,13 +325,11 @@ async def test_user_cannot_update_another_users_note(
     await db.commit()
     await db.refresh(other_user)
 
-    # Switch authentication to User 2
     async def override_get_current_user():
         return other_user
 
     app.dependency_overrides[get_current_user] = override_get_current_user
 
-    # User 2 tries to update User 1's note
     response = await authenticated_client.put(
         f"/notes/{note_id}",
         json={
@@ -336,13 +341,13 @@ async def test_user_cannot_update_another_users_note(
     assert response.status_code == 404
     assert response.json()["detail"] == "Note not found"
 
+
 @pytest.mark.asyncio
 async def test_user_cannot_delete_another_users_note(
     authenticated_client,
     db,
     test_user,
 ):
-    # User 1 creates a note
     response = await authenticated_client.post(
         "/notes",
         json={
@@ -351,11 +356,10 @@ async def test_user_cannot_delete_another_users_note(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     note_id = response.json()["id"]
 
-    # Create User 2
     other_user = User(
         email="delete-other-user@example.com",
         password_hash="test_hash",
@@ -365,19 +369,18 @@ async def test_user_cannot_delete_another_users_note(
     await db.commit()
     await db.refresh(other_user)
 
-    # Switch authentication to User 2
     async def override_get_current_user():
         return other_user
 
     app.dependency_overrides[get_current_user] = override_get_current_user
 
-    # User 2 tries to delete User 1's note
     response = await authenticated_client.delete(
         f"/notes/{note_id}"
     )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Note not found"
+
 
 @pytest.mark.asyncio
 async def test_refresh_token_returns_new_access_token(client):
@@ -389,7 +392,7 @@ async def test_refresh_token_returns_new_access_token(client):
         },
     )
 
-    assert register_response.status_code == 200
+    assert register_response.status_code == 201
 
     login_response = await client.post(
         "/auth/login",
@@ -412,6 +415,8 @@ async def test_refresh_token_returns_new_access_token(client):
 
     assert response.status_code == 200
     assert "access_token" in response.json()
+    assert response.json()["token_type"] == "bearer"
+
 
 @pytest.mark.asyncio
 async def test_access_token_cannot_be_used_as_refresh_token(client):
@@ -423,7 +428,7 @@ async def test_access_token_cannot_be_used_as_refresh_token(client):
         },
     )
 
-    assert register_response.status_code == 200
+    assert register_response.status_code == 201
 
     login_response = await client.post(
         "/auth/login",
@@ -444,7 +449,8 @@ async def test_access_token_cannot_be_used_as_refresh_token(client):
         },
     )
 
-    assert response.status_code == 401  
+    assert response.status_code == 401
+
 
 @pytest.mark.asyncio
 async def test_invalid_refresh_token_is_rejected(client):
@@ -456,6 +462,7 @@ async def test_invalid_refresh_token_is_rejected(client):
     )
 
     assert response.status_code == 401
+
 
 @pytest.mark.asyncio
 async def test_refresh_token_for_nonexistent_user_is_rejected(client):

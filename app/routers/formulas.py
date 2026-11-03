@@ -11,9 +11,15 @@ from app.services.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from fastapi import HTTPException
 
 
 router = APIRouter(prefix="/notes/{note_id}/formulas", tags=["Formulas"])
+
+
+
+def _as_http(exc: Exception, code: int) -> HTTPException:
+    return HTTPException(status_code=code, detail=str(exc))
 
 
 @router.get("", response_model=list[FormulaResponse])
@@ -25,7 +31,7 @@ async def list_formulas(
     try:
         return await formula_service.list_formulas(db, note_id, current_user)
     except NotFoundError as e:
-        raise _as_http(e, 404)
+        raise _as_http(e, 404) from e
 
 
 @router.post(
@@ -49,13 +55,8 @@ async def create_formula(
             result_unit_symbol=payload.result_unit_symbol,
         )
     except NotFoundError as e:
-        raise _as_http(e, 404)
+        raise _as_http(e, 404) from e
     except ConflictError as e:
-        raise _as_http(e, 409)
+        raise _as_http(e, 409) from e
     except ValidationError as e:
-        raise _as_http(e, 422)
-
-
-def _as_http(exc: Exception, code: int):
-    from fastapi import HTTPException
-    return HTTPException(status_code=code, detail=str(exc))
+        raise _as_http(e, 422) from e

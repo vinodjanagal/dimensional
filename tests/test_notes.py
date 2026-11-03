@@ -4,12 +4,14 @@ from app.models import User
 from app.auth.auth import get_current_user
 import time
 
+
 @pytest.mark.asyncio
 async def test_get_notes(authenticated_client):
     response = await authenticated_client.get("/notes")
 
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
 
 @pytest.mark.asyncio
 async def test_create_note(authenticated_client):
@@ -21,7 +23,7 @@ async def test_create_note(authenticated_client):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()
 
@@ -31,12 +33,14 @@ async def test_create_note(authenticated_client):
     assert "created_at" in data
     assert "updated_at" in data
 
+
 @pytest.mark.asyncio
 async def test_get_note_not_found(authenticated_client):
     response = await authenticated_client.get("/notes/999999")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Note not found"
+
 
 @pytest.mark.asyncio
 async def test_update_note(authenticated_client):
@@ -48,7 +52,7 @@ async def test_update_note(authenticated_client):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     note_id = response.json()["id"]
 
     response = await authenticated_client.put(
@@ -67,6 +71,7 @@ async def test_update_note(authenticated_client):
     assert data["title"] == "after update"
     assert data["content"] == "new content"
 
+
 @pytest.mark.asyncio
 async def test_delete_note(authenticated_client):
     response = await authenticated_client.post(
@@ -77,17 +82,18 @@ async def test_delete_note(authenticated_client):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     note_id = response.json()["id"]
 
     response = await authenticated_client.delete(f"/notes/{note_id}")
 
-    assert response.status_code == 200
-    assert response.json()["message"] == "Note deleted successfully"
+    assert response.status_code == 204
+    assert response.content == b""
 
     response = await authenticated_client.get(f"/notes/{note_id}")
 
     assert response.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_user_cannot_get_another_users_note(
@@ -103,7 +109,7 @@ async def test_user_cannot_get_another_users_note(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     note_id = response.json()["id"]
 
     other_user = User(
@@ -125,6 +131,7 @@ async def test_user_cannot_get_another_users_note(
 
     assert response.status_code == 404
 
+
 @pytest.mark.asyncio
 async def test_user_cannot_update_another_users_note(
     authenticated_client,
@@ -139,7 +146,7 @@ async def test_user_cannot_update_another_users_note(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     note_id = response.json()["id"]
 
     other_user = User(
@@ -166,6 +173,7 @@ async def test_user_cannot_update_another_users_note(
     assert response.status_code == 404
     assert response.json()["detail"] == "Note not found"
 
+
 @pytest.mark.asyncio
 async def test_user_cannot_delete_another_users_note(
     authenticated_client,
@@ -180,7 +188,7 @@ async def test_user_cannot_delete_another_users_note(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     note_id = response.json()["id"]
 
     other_user = User(
@@ -212,6 +220,7 @@ async def test_user_cannot_delete_another_users_note(
 
     assert response.status_code == 200
 
+
 @pytest.mark.asyncio
 async def test_update_note_changes_updated_at(authenticated_client):
     response = await authenticated_client.post(
@@ -222,7 +231,7 @@ async def test_update_note_changes_updated_at(authenticated_client):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     note = response.json()
 

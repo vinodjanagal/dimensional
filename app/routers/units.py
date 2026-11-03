@@ -11,13 +11,19 @@ from app.schemas.unit import (
     UnitResponse,
 )
 from app.services.unit_service import (
-    IncompatibleUnitsError,
     convert,
     is_compatible,
 )
+from app.services.exceptions import IncompatibleUnitsError
 
 from app.schemas.unit import ValidateExpressionRequest, ValidateExpressionResponse
 from app.services.expression import ExpressionError, evaluate_dimension
+
+
+# Units endpoints are intentionally public: they operate on the seeded unit
+# catalogue (reference data, not user-specific). Adding auth here would add
+# per-request overhead with no security benefit — abuse prevention is handled
+# at the reverse-proxy layer.
 
 router = APIRouter(prefix="/units", tags=["Units"])
 
