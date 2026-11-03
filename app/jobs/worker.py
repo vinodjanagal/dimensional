@@ -7,11 +7,15 @@ Postgres and Redis, but serves no HTTP. It pulls jobs off the Redis
 queue and runs the functions listed in `WorkerSettings.functions`.
 """
 
+import logging
+
 from arq.connections import RedisSettings
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.logging import configure_logging
 from app.jobs.tasks import analyze_note
+from app.jobs.config import MAX_JOB_TRIES
 
 
 async def on_startup(ctx: dict) -> None:
@@ -20,6 +24,19 @@ async def on_startup(ctx: dict) -> None:
     Creates a database engine and session factory, and stashes it in
     `ctx` so every task invocation can open a session.
     """
+
+    configure_logging(settings.log_level)
+    logger = logging.getLogger(__name__)
+
+    logger.info(
+        "worker.starting",
+        extra={
+            "event": "worker.starting",
+            "db_pool_size": settings.db_pool_size,
+            "db_max_overflow": settings.db_max_overflow,
+        },
+    )
+
     engine = create_async_engine(
         settings.database_url,
         pool_size=settings.db_pool_size,
@@ -52,7 +69,7 @@ class WorkerSettings:
     on_shutdown = on_shutdown
 
     # If a job raises, retry up to this many times with exponential backoff.
-    max_tries = 3
+    max_tries = MAX_JOB_TRIES
 
     # Keep result of finished jobs in Redis for 5 minutes. Our source of
     # truth is Postgres, so this is a small cache only.
