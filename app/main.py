@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import engine, get_db
 from app.core.logging import configure_logging, request_id_var
 from app.routers import auth as auth_router
 from app.routers import formulas as formulas_router
@@ -35,12 +35,23 @@ async def lifespan(app: FastAPI):
         },
     )
 
-    app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    app.state.arq_pool = None
+
     try:
+        app.state.arq_pool = await create_pool(
+            RedisSettings.from_dsn(settings.redis_url)
+        )
         yield
     finally:
-        await app.state.arq_pool.close()
-        logger.info("api.stopped", extra={"event": "api.stopped"})
+        try:
+            if app.state.arq_pool is not None:
+                await app.state.arq_pool.close()
+        finally:
+            await engine.dispose()
+            logger.info(
+                "api.stopped",
+                extra={"event": "api.stopped"},
+            )
 
 
 app = FastAPI(title="dimensional", lifespan=lifespan)
