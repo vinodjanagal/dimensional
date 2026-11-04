@@ -26,7 +26,7 @@ services:
       REDIS_URL: redis://redis:6379/0
     volumes:
       - .:/app
-    command: alembic upgrade head
+    command: sh -c "alembic upgrade head && python -m scripts.seed_units"
     depends_on:
       db:
         condition: service_healthy
@@ -45,6 +45,11 @@ services:
     volumes:
       - .:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5    
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -52,6 +57,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
 
 
 
