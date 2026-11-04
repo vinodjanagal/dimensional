@@ -28,5 +28,4 @@ async def get_by_name(
 async def create(db: AsyncSession, formula: Formula) -> Formula:
     db.add(formula)
     await db.flush()
-    await db.refresh(formula)
     return formula

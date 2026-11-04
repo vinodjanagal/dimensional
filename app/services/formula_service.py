@@ -5,6 +5,7 @@ is dimensionally consistent with its declared result unit. Any
 violation is caught *before* the INSERT statement is issued.
 """
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Formula, Note, User
@@ -15,21 +16,7 @@ from app.services.exceptions import (
     ValidationError,
 )
 from app.services.expression import ExpressionError, evaluate_dimension
-
-
-async def _get_owned_note(
-    db: AsyncSession, note_id: int, user: User
-) -> Note:
-    """Fetch a note by ID, ensuring it belongs to `user`.
-
-    Raises NotFoundError if the note does not exist OR belongs to
-    another user — the caller cannot distinguish the two cases. This
-    avoids leaking the existence of other users' notes.
-    """
-    note = await db.get(Note, note_id)
-    if note is None or note.owner_id != user.id:
-        raise NotFoundError(f"Note {note_id} not found")
-    return note
+from app.auth.permissions import get_owned_note as _get_owned_note
 
 
 async def list_formulas(
@@ -87,9 +74,17 @@ async def create_formula(
         expression=expression,
         result_unit_id=result_unit.id,
     )
-    formula = await formula_repository.create(db, formula)
-    await db.commit()
 
-    # Refresh to load the relationship for the response
-    await db.refresh(formula, ["result_unit"])
-    return formula
+    try:
+        formula = await formula_repository.create(db, formula)
+        await db.commit()
+        await db.refresh(formula, ["result_unit"])
+        return formula
+    except IntegrityError as e:
+        await db.rollback()
+        #Unique constraint on (note_id, name) - meaning name collided with concurrent insert
+        raise ConflictError(f"A formula named {name!r} already exists in this note") from e
+
+    except Exception:
+        await db.rollback()
+        raise

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text, CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +10,12 @@ from app.models.base import Base
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'running', 'retrying', 'done', 'failed')",
+            name="ck_jobs_status",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -35,7 +41,7 @@ class Job(Base):
 
     job_type: Mapped[str] = mapped_column(String(50), nullable=False)
 
-    # queued | running | done | failed
+    # queued | running | retrying | done | failed
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

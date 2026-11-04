@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/**']
   pull_request:
     branches: [main]
 
@@ -66,3 +66,6 @@ jobs:
 
       - name: Run tests
         run: pytest -v
+
+      - name: Build Docker image
+        run: docker build -t dimensional:test .

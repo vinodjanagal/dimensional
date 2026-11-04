@@ -4,6 +4,10 @@ import pytest
 
 from app.models import Formula, Job, Note, User
 
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
+
+from app.jobs.tasks import is_retryable_error
+
 
 # ---------------------------------------------------------------- helpers
 
@@ -137,7 +141,7 @@ async def test_analyze_note_task_counts_words(test_user, db):
         db, test_user, content="one two three four five"
     )
 
-    result = await _run_analysis(db, note.id)
+    result = await _run_analysis(db, note.id, test_user.id)
     assert result["word_count"] == 5
     assert result["char_count"] == 23
     assert result["line_count"] == 1
@@ -162,7 +166,7 @@ async def test_analyze_note_task_reports_invalid_formula(test_user, db):
     db.add(bad)
     await db.commit()
 
-    result = await _run_analysis(db, note.id)
+    result = await _run_analysis(db, note.id, test_user.id)
     assert result["formula_count"] == 1
     assert len(result["invalid_formulas"]) == 1
     assert result["invalid_formulas"][0]["name"] == "wrong_energy"
@@ -186,6 +190,53 @@ async def test_analyze_note_task_reports_valid_formula(test_user, db):
     db.add(good)
     await db.commit()
 
-    result = await _run_analysis(db, note.id)
+    result = await _run_analysis(db, note.id, test_user.id)
     assert result["formula_count"] == 1
     assert result["invalid_formulas"] == []
+
+
+def test_is_retryable_error_transient_exceptions():
+    assert is_retryable_error(ConnectionError("Connection reset by peer")) is True
+    assert is_retryable_error(TimeoutError("Request timed out")) is True
+
+
+def test_is_retryable_error_connection_invalidated():
+    # Simulate SQLAlchemy noticing a broken TCP socket
+    err = DBAPIError("SELECT 1", {}, Exception("DB dropped"), connection_invalidated=True)
+    assert is_retryable_error(err) is True
+
+
+def test_is_retryable_error_sqlstates():
+    class MockOrig:
+        def __init__(self, sqlstate):
+            self.sqlstate = sqlstate
+
+    # 08*** = Connection exceptions
+    err_conn = OperationalError("statement", {}, MockOrig("08006"))
+    assert is_retryable_error(err_conn) is True
+
+    # 40001 = Serialization failure
+    err_serial = OperationalError("statement", {}, MockOrig("40001"))
+    assert is_retryable_error(err_serial) is True
+
+    # 40P01 = Deadlock detected
+    err_deadlock = OperationalError("statement", {}, MockOrig("40P01"))
+    assert is_retryable_error(err_deadlock) is True
+
+    # 55P03 = Lock not available
+    err_lock = OperationalError("statement", {}, MockOrig("55P03"))
+    assert is_retryable_error(err_lock) is True
+
+
+def test_is_retryable_error_rejects_permanent_errors():
+    class MockOrig:
+        def __init__(self, sqlstate):
+            self.sqlstate = sqlstate
+
+    # 23505 = Unique constraint violation (MUST NOT RETRY)
+    err_unique = IntegrityError("statement", {}, MockOrig("23505"))
+    assert is_retryable_error(err_unique) is False
+
+    # Standard application errors (MUST NOT RETRY)
+    assert is_retryable_error(ValueError("Invalid argument")) is False
+    assert is_retryable_error(RuntimeError("Note not found")) is False

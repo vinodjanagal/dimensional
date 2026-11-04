@@ -7,18 +7,10 @@ from app.models import Note, Quantity, User
 from app.repositories import quantity_repository, unit_repository
 from app.schemas.quantity import QuantityCreate, QuantityResponse
 from app.services.exceptions import NotFoundError
+from app.auth.permissions import get_owned_note as _get_owned_note
 
 
 router = APIRouter(prefix="/notes/{note_id}/quantities", tags=["Quantities"])
-
-
-async def _get_owned_note(
-    db: AsyncSession, note_id: int, user: User
-) -> Note:
-    note = await db.get(Note, note_id)
-    if note is None or note.owner_id != user.id:
-        raise HTTPException(404, f"Note {note_id} not found")
-    return note
 
 
 @router.get("", response_model=list[QuantityResponse])
